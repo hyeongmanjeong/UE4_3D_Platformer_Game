@@ -20,20 +20,39 @@ void UHook::GetComponentAndBind()
 {
 	physicsHandle = GetOwner()->FindComponentByClass<UPhysicsHandleComponent>();
 	inputComponents = GetOwner()->FindComponentByClass<UInputComponent>();
-
 	inputComponents->BindAction("Grab", IE_Pressed, this, &UHook::Grab);
 	inputComponents->BindAction("Grab", IE_Released, this, &UHook::Release);
-
 }
 void UHook::Grab()
 {
+	auto hitResult = GetPhysicsBodyInReach();
+	auto grabComponent = hitResult.GetComponent();
+	auto actorHit = hitResult.GetActor();
+
+	if (actorHit) 
+	{
+		physicsHandle->GrabComponentAtLocation
+		(
+			grabComponent, NAME_None, grabComponent->GetOwner()->GetActorLocation()
+		);
+	}
+
 }
 void UHook::Release()
 {
+	physicsHandle->ReleaseComponent();
 }
 FHitResult UHook::GetPhysicsBodyInReach()
 {
-	return FHitResult();
+	FCollisionQueryParams traceParameters(FName(TEXT("")), false ,GetOwner());
+
+	FHitResult hitResult;
+	GetWorld()->LineTraceSingleByObjectType(
+		hitResult, GetReachStart(), GetReachEnd(),FCollisionObjectQueryParams(ECollisionChannel::ECC_PhysicsBody),
+		traceParameters
+		);
+
+	return hitResult;
 }
 FVector UHook::GetReachStart()
 {
@@ -42,11 +61,17 @@ FVector UHook::GetReachStart()
 	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(
 		playerViewPoint,playerViewPointRotation
 	);
-	return FVector();
+	return playerViewPoint;
 }
 FVector UHook::GetReachEnd()
 {
-	return FVector();
+	FVector playerViewPoint;
+	FRotator playerViewPointRotation;
+	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(
+		playerViewPoint, playerViewPointRotation
+	);
+	FVector lineTraceEnd = playerViewPoint + playerViewPointRotation.Vector() * reach;
+	return lineTraceEnd;
 }
 // Called when the game starts
 void UHook::BeginPlay()
@@ -64,5 +89,8 @@ void UHook::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentT
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	// ...
+	if (physicsHandle->GrabbedComponent) {
+		physicsHandle->SetTargetLocation(GetReachEnd());
+	}
 }
 
